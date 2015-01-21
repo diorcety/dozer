@@ -52,8 +52,10 @@ public class InheritanceTest extends Assert {
     {
       B result = mapper.map(source, B.class);
 
-      assertThat((Class<B>) result.getClass(), equalTo(B.class));
-      assertThat(result.property1, equalTo("1"));
+      assertThat((Class<C>) result.getClass(), equalTo(C.class));
+      C resultCast = (C) result;
+      assertThat(resultCast.property1, equalTo("1"));
+      assertThat(resultCast.property2, equalTo("2"));
     }
   }
 

@@ -127,7 +127,7 @@ public class MappingProcessor implements Mapper {
   private <T> T mapGeneral(Object srcObj, final Class<T> destClass, final T destObj, final String mapId) {
     srcObj = MappingUtils.deProxy(srcObj);
 
-    Class<T> destType;
+    Class<? extends T> destType;
     T result;
     if (destClass == null) {
       destType = (Class<T>) destObj.getClass();
@@ -139,6 +139,9 @@ public class MappingProcessor implements Mapper {
 
     ClassMap classMap = null;
     try {
+      if(destObj == null) {
+        destType = getBestDestinationClass(classMappings, srcObj.getClass(), destType, mapId);
+      }
       classMap = getClassMap(srcObj.getClass(), destType, mapId);
 
       eventMgr.fireEvent(new DozerEvent(DozerEventType.MAPPING_STARTED, classMap, null, srcObj, result, null));
@@ -500,7 +503,9 @@ public class MappingProcessor implements Mapper {
       Class<?> targetClass;
       if (fieldMap.getDestHintContainer() != null && fieldMap.getDestHintContainer().getHint() != null) {
         targetClass = fieldMap.getDestHintContainer().getHint();
+        targetClass = getBestDestinationClass(classMappings, srcFieldValue.getClass(), targetClass, mapId);
       } else {
+        destFieldType = getBestDestinationClass(classMappings, srcFieldValue.getClass(), destFieldType, mapId);
         targetClass = destFieldType;
       }
       ClassMap classMap = getClassMap(srcFieldValue.getClass(), targetClass, mapId);
@@ -1095,6 +1100,32 @@ public class MappingProcessor implements Mapper {
       }
     }
     return result;
+  }
+  public static <T> Class<? extends T> getBestDestinationClass(ClassMappings classMappings, Class<?> sourceClass, Class<T> destinationClass, String mapId) {
+    return getBestDestinationClass(classMappings.getAll().values(), sourceClass, destinationClass, mapId);
+  }
+
+  public static <T> Class<? extends T> getBestDestinationClass(Collection<ClassMap> classMappings, Class<?> sourceClass, Class<T> destinationClass, String mapId) {
+    if (sourceClass == null || Object.class.equals(sourceClass)) {
+      return destinationClass;
+    }
+    Class<? extends T> preferedClass = null;
+    for(ClassMap classMap : classMappings) {
+      if((classMap.getMapId() == null && mapId == null) || (classMap.getMapId() != null && classMap.getMapId().equals(mapId))) {
+        if (classMap.getSrcClassName().equals(sourceClass.getName())) {
+          Class<?> destClass = classMap.getDestClassToMap();
+          if (destinationClass.isAssignableFrom(destClass)) {
+            if (preferedClass == null || preferedClass.isAssignableFrom(destClass)) {
+              preferedClass = destClass.asSubclass(destinationClass);
+            }
+          }
+        }
+      }
+    }
+    if(preferedClass != null) {
+      return preferedClass;
+    }
+    return getBestDestinationClass(classMappings, sourceClass.getSuperclass(), destinationClass, mapId);
   }
 
   private ClassMap getClassMap(Class<?> srcClass, Class<?> destClass, String mapId) {
